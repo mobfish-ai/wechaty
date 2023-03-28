@@ -27,6 +27,8 @@ import {
 import qrTerm from 'qrcode-terminal'
 import { FileBox } from 'file-box'
 
+import   mysql   from 'mysql2'
+
 /**
  *
  * 1. Declare your Bot!
@@ -53,6 +55,34 @@ const options = {
   // }
 }
 
+export function parseMysql (str: string) {
+  const u = new URL(str);
+  if (u.protocol !== "mysql:") throw new Error("Invalid protocol");
+  return {
+    host: u.hostname || "localhost",
+    port: parseInt(u.port || "3306"),
+    user: u.username || "root",
+    password: u.password || "",
+    database: u.pathname.slice(1) || "test",
+    charset: u.searchParams.get("charset") || "utf8mb4",
+  };
+}
+
+// create the connection to database
+const MYSQL=process.env['MYSQL']
+const conn_params = parseMysql(MYSQL)
+console.log('[db env]',conn_params.host, conn_params.database)
+const connection = mysql.createConnection(parseMysql(MYSQL))
+  // const res =  connection.query("SELECT 1");
+  const promisePool = connection.promise()
+
+const [res,fields] =  await promisePool.execute('SELECT 1');
+if(res.length>0){
+console.log('db connected')
+}else{
+  console.log('db connection failed')
+
+}
 const bot = WechatyBuilder.build(options)
 
 /**
@@ -75,6 +105,7 @@ bot
   .catch(async e => {
     console.error('Bot start() fail:', e)
     await bot.stop()
+    connection.end()
     process.exit(-1)
   })
 
@@ -130,13 +161,51 @@ function onError (e: Error) {
  *    dealing with Messages.
  *
  */
-async function onMessage (msg: Message) {
-  console.info(msg.toString())
 
-  if (msg.self()) {
-    console.info('Message discarded because its outgoing')
-    return
+function null2Empty(val){
+  if(val===undefined||val===null)return ''
+}
+async function onMessage (msg: Message) {
+  // console.log("msg",msg)
+   const {payload}=msg
+  console.log("msg.toString():",msg.toString(), "msg type",payload.type)
+
+
+  const from = msg.talker()
+  const FromUserName=from.name()
+  const to=msg.to()
+  const room=msg.room()
+  const roomId=room?room.id:''
+
+  // 群聊消息
+  if(payload.type===7){
+
+    console.log("from",FromUserName,"room#",room?.payload.memberIdList.length)
+    // console.log("msg payload",payload)
+
+    try{
+
+    const [res,fields] =  await promisePool.execute('insert into wx_message_logs(timestamp, MsgId, FromUserName,\
+    talkerId,roomId,mentionIdList,Content,type) value(?,?,?,?,?,?,?,?)',
+    [payload.timestamp,payload.id,FromUserName,
+      payload.talkerId,roomId,JSON.stringify(payload.mentionIdList),payload.text,payload.type,
+    ])
+
+    const [res1,fields1] =await promisePool.execute('select count(*) as count from wx_rooms where\
+    roomId=?', [roomId])
+    if(res1[0].count <=0){
+      await promisePool.execute('insert into wx_rooms(roomId, membersList) values\
+    (?,?)', [roomId,JSON.stringify(room.memberList())])
+    }
+    console.log(res)
+    }catch(err){
+      console.log("onMessage",err)
+    }
   }
+  // if (msg.self()) {
+  //   console.info('Message discarded because its outgoing')
+  //   return
+  // }
 
   if (msg.age() > 2 * 60) {
     console.info('Message discarded because its TOO OLD(than 2 minutes)')
