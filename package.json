@@ -153,8 +153,10 @@
     "raven": "^2.6.4",
     "regenerator-runtime": "^0.13.9",
     "sloc": "^0.2.1",
+    "ts-node": "^10.9.1",
     "typed-emitter": "^1.5.0-from-event",
     "typedoc": "^1.0.0-dev.4 ",
+    "typescript": "^5.2.2",
     "wechaty-puppet-mock": "^1.18.2",
     "wechaty-puppet-padlocal": "^1.11.13"
   },
@@ -170,10 +172,5 @@
   "collective": {
     "type": "opencollective",
     "url": "https://opencollective.com/wechaty"
-  },
-  "git": {
-    "scripts": {
-      "pre-push": "npx git-scripts-pre-push"
-    }
   }
 }
