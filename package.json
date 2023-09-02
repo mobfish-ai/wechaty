@@ -172,5 +172,10 @@
   "collective": {
     "type": "opencollective",
     "url": "https://opencollective.com/wechaty"
+  },
+  "git": {
+    "scripts": {
+      "pre-push": "npx git-scripts-pre-push"
+    }
   }
 }
