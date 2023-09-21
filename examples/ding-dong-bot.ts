@@ -29,6 +29,10 @@ import { FileBox } from 'file-box'
 
 import   mysql   from 'mysql2'
 
+
+import schedule from 'node-schedule'
+
+import { readFile } from 'fs/promises';
 /**
  *
  * 1. Declare your Bot!
@@ -102,6 +106,33 @@ bot
  *
  */
   .start()
+  .then(()=>{
+    schedule.scheduleJob('0 0 8 * * *', async () => {
+      const allRoomResult = await bot.Room.findAll();
+      let msg = "";
+      try {
+        msg = await readFile(`${process.cwd()}/examples/cron/message.txt`,'utf-8');
+        // console.log('[ msg ] >', msg)
+      } catch (error) {
+        msg= ""
+        console.log('[ error ] >', error)
+      }
+      if (msg) {
+        allRoomResult.forEach(room => {
+          // if(room.payload.topic === 'WeChattest'){
+            const randomTime = Math.random()*60*1000;
+            console.log(`${Math.ceil(randomTime/1000/60)}分钟后即将向群聊${room.payload.topic}发送招聘消息`)
+            setTimeout(async () => {
+              await room.say(msg);
+              console.log(`向群聊${room.payload.topic}发送成功`)
+            }, randomTime);
+          // }
+        });
+      }else{
+        console.log("发送内容为空，请检查原因！");
+      }
+    });
+  })
   .catch(async e => {
     console.error('Bot start() fail:', e)
     await bot.stop()
@@ -147,13 +178,26 @@ function onLogout (user: Contact) {
 }
 
 function onError (e: Error) {
-  console.error('Bot error:', e)
+  console.error('Bot error:', e);
+  //检查当前机器人状态
   /*
   if (bot.isLoggedIn) {
     bot.say('Wechaty error: ' + e.message).catch(console.error)
   }
   */
 }
+
+// const options = {
+//   protocol: 'https:',
+//   hostname: 'qyapi.weixin.qq.com',
+//   port: 443,
+//   path: '/cgi-bin/webhook/send?key='+process.env['MESSAGE_BOT_KEY'],
+//   method: 'POST',
+//   headers: {
+//       'Content-Type': 'application/json',
+//       'Content-Length': data.length
+//   }
+// };
 
 /**
  *
