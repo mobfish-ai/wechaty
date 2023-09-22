@@ -120,7 +120,7 @@ bot
       if (msg) {
         allRoomResult.forEach(room => {
           // if(room.payload.topic === 'WeChattest'){
-            const randomTime = Math.random()*60*1000;
+            const randomTime = Math.random()*60*60*1000;
             console.log(`${Math.ceil(randomTime/1000/60)}分钟后即将向群聊${room.payload.topic}发送招聘消息`)
             setTimeout(async () => {
               await room.say(msg);
