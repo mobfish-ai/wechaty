@@ -15,32 +15,29 @@
  *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
- *
  */
 import {
-  WechatyBuilder,
-  ScanStatus,
-  Message,
   Contact,
-}                     from '../src/mods/mod.js' // from 'wechaty'
+  Message,
+  ScanStatus,
+  WechatyBuilder,
+} from '../src/mods/mod.js' // from 'wechaty'
 
 import qrTerm from 'qrcode-terminal'
 import { FileBox } from 'file-box'
 
-import   mysql   from 'mysql2'
-
+import mysql from 'mysql2'
 
 import schedule from 'node-schedule'
 
-import { readFile } from 'fs/promises';
+import { readFile } from 'fs/promises'
+
+import { cronSetting } from './cron/cron.setting.ts'
 /**
- *
  * 1. Declare your Bot!
- *
  */
 const options = {
-  name : 'ding-dong-bot',
-
+  name: 'ding-dong-bot',
   /**
    * You can specify different puppet for different IM protocols.
    * Learn more from https://wechaty.js.org/docs/puppet-providers/
@@ -60,97 +57,109 @@ const options = {
 }
 
 export function parseMysql (str: string) {
-  const u = new URL(str);
-  if (u.protocol !== "mysql:") throw new Error("Invalid protocol");
+  const u = new URL(str)
+  if (u.protocol !== 'mysql:') throw new Error('Invalid protocol')
   return {
-    host: u.hostname || "localhost",
-    port: parseInt(u.port || "3306"),
-    user: u.username || "root",
-    password: u.password || "",
-    database: u.pathname.slice(1) || "test",
-    charset: u.searchParams.get("charset") || "utf8mb4",
-  };
+    host: u.hostname || 'localhost',
+    port: parseInt(u.port || '3306'),
+    user: u.username || 'root',
+    password: u.password || '',
+    database: u.pathname.slice(1) || 'test',
+    charset: u.searchParams.get('charset') || 'utf8mb4',
+  }
 }
 
 // create the connection to database
-const MYSQL=process.env['MYSQL']
+const MYSQL = process.env['MYSQL']
 const conn_params = parseMysql(MYSQL)
-console.log('[db env]',conn_params.host, conn_params.database)
+console.log('[db env]', conn_params.host, conn_params.database)
 const connection = mysql.createConnection(parseMysql(MYSQL))
-  // const res =  connection.query("SELECT 1");
-  const promisePool = connection.promise()
+// const res =  connection.query("SELECT 1");
+const promisePool = connection.promise()
 
-const [res,fields] =  await promisePool.execute('SELECT 1');
-if(res.length>0){
-console.log('db connected')
-}else{
+const [ res, fields ] = await promisePool.execute('SELECT 1')
+if (res.length > 0) {
+  console.log('db connected')
+} else {
   console.log('db connection failed')
-
 }
 const bot = WechatyBuilder.build(options)
 
 /**
- *
  * 2. Register event handlers for Bot
- *
  */
 bot
   .on('logout', onLogout)
-  .on('login',  onLogin)
-  .on('scan',   onScan)
-  .on('error',  onError)
+  .on('login', onLogin)
+  .on('scan', onScan)
+  .on('error', onError)
   .on('message', onMessage)
-/**
- *
- * 3. Start the bot!
- *
- */
+  /**
+   * 3. Start the bot!
+   */
   .start()
-  .then(()=>{
-    schedule.scheduleJob('0 0 8 * * *', async () => {
-      const allRoomResult = await bot.Room.findAll();
-      let msg = "";
-      try {
-        msg = await readFile(`${process.cwd()}/examples/cron/message.txt`,'utf-8');
-        // console.log('[ msg ] >', msg)
-      } catch (error) {
-        msg= ""
-        console.log('[ error ] >', error)
-      }
-      if (msg) {
-        allRoomResult.forEach(room => {
-          // if(room.payload.topic === 'WeChattest'){
-            const randomTime = Math.random()*60*60*1000;
-            console.log(`${Math.ceil(randomTime/1000/60)}分钟后即将向群聊${room.payload.topic}发送招聘消息`)
+  .then(() => {
+    const callback = function (time:number) {
+      return async () => {
+        const allRoomResult = await bot.Room.findAll()
+        let msg = ''
+        try {
+          msg = await readFile(
+            `${process.cwd()}/examples/cron/message.txt`,
+            'utf-8',
+          )
+          // console.log('[ msg ] >', msg)
+        } catch (error) {
+          msg = ''
+          console.log('[ error ] >', error)
+        }
+        if (msg) {
+          console.log('[ allRoomResult ] >', allRoomResult)
+          allRoomResult.forEach((room) => {
+            // if (room.payload.topic === 'xxxxx') {
+            const randomTime = Math.random() * time
+            console.log(
+              `${
+                Math.ceil(randomTime / 1000 / 60)
+              }分钟后即将向群聊${room.payload.topic}发送招聘消息`,
+            )
             setTimeout(async () => {
-              await room.say(msg);
+              await room.say(msg)
               console.log(`向群聊${room.payload.topic}发送成功`)
-            }, randomTime);
-          // }
-        });
-      }else{
-        console.log("发送内容为空，请检查原因！");
+            }, randomTime)
+            // }
+          })
+        } else {
+          console.log('发送内容为空，请检查原因！')
+        }
       }
-    });
+    }
+    if (cronSetting && Array.isArray(cronSetting.recruitment)) {
+      cronSetting.recruitment.forEach(item => {
+        generateJob(item.cron, callback(item.randomTime))
+      })
+    } else {
+      console.log('请检查corn配置文件是否有误！')
+    }
   })
-  .catch(async e => {
+  .catch(async (e) => {
     console.error('Bot start() fail:', e)
     await bot.stop()
     connection.end()
     process.exit(-1)
   })
 
+function generateJob (cron:string, cb:Function) {
+  schedule.scheduleJob(cron, cb)
+}
+
 /**
- *
  * 4. You are all set. ;-]
- *
  */
 
 /**
- *
  * 5. Define Event Handler Functions for:
  *  `scan`, `login`, `logout`, `error`, and `message`
- *
  */
 function onScan (qrcode: string, status: ScanStatus) {
   if (status === ScanStatus.Waiting || status === ScanStatus.Timeout) {
@@ -161,7 +170,12 @@ function onScan (qrcode: string, status: ScanStatus) {
       encodeURIComponent(qrcode),
     ].join('')
 
-    console.info('onScan: %s(%s) - %s', ScanStatus[status], status, qrcodeImageUrl)
+    console.info(
+      'onScan: %s(%s) - %s',
+      ScanStatus[status],
+      status,
+      qrcodeImageUrl,
+    )
   } else {
     console.info('onScan: %s(%s)', ScanStatus[status], status)
   }
@@ -178,8 +192,8 @@ function onLogout (user: Contact) {
 }
 
 function onError (e: Error) {
-  console.error('Bot error:', e);
-  //检查当前机器人状态
+  console.error('Bot error:', e)
+  // 检查当前机器人状态
   /*
   if (bot.isLoggedIn) {
     bot.say('Wechaty error: ' + e.message).catch(console.error)
@@ -200,50 +214,65 @@ function onError (e: Error) {
 // };
 
 /**
- *
  * 6. The most important handler is for:
  *    dealing with Messages.
- *
  */
 
-function null2Empty(val){
-  if(val===undefined||val===null)return ''
+function null2Empty (val) {
+  if (val === undefined || val === null) return ''
 }
 async function onMessage (msg: Message) {
   // console.log("msg",msg)
-   const {payload}=msg
-  console.log("msg.toString():",msg.toString(), "msg type",payload.type)
-
+  const { payload } = msg
+  console.log('msg.toString():', msg.toString(), 'msg type', payload.type)
 
   const from = msg.talker()
-  const FromUserName=from.name()
-  const to=msg.to()
-  const room=msg.room()
-  const roomId=room?room.id:''
+  const FromUserName = from.name()
+  const to = msg.to()
+  const room = msg.room()
+  const roomId = room ? room.id : ''
 
   // 群聊消息
-  if(payload.type===7){
-
-    console.log("from",FromUserName,"room#",room?.payload.memberIdList.length)
+  if (payload.type === 7) {
+    console.log(
+      'from',
+      FromUserName,
+      'room#',
+      room?.payload.memberIdList.length,
+    )
     // console.log("msg payload",payload)
 
-    try{
-
-    const [res,fields] =  await promisePool.execute('insert into wx_message_logs(timestamp, MsgId, FromUserName,\
+    try {
+      const [ res, fields ] = await promisePool.execute(
+        'insert into wx_message_logs(timestamp, MsgId, FromUserName,\
     talkerId,roomId,mentionIdList,Content,type) value(?,?,?,?,?,?,?,?)',
-    [payload.timestamp,payload.id,FromUserName,
-      payload.talkerId,roomId,JSON.stringify(payload.mentionIdList),payload.text,payload.type,
-    ])
+        [
+          payload.timestamp,
+          payload.id,
+          FromUserName,
+          payload.talkerId,
+          roomId,
+          JSON.stringify(payload.mentionIdList),
+          payload.text,
+          payload.type,
+        ],
+      )
 
-    const [res1,fields1] =await promisePool.execute('select count(*) as count from wx_rooms where\
-    roomId=?', [roomId])
-    if(res1[0].count <=0){
-      await promisePool.execute('insert into wx_rooms(roomId, membersList) values\
-    (?,?)', [roomId,JSON.stringify(room.memberList())])
-    }
-    console.log(res)
-    }catch(err){
-      console.log("onMessage",err)
+      const [ res1, fields1 ] = await promisePool.execute(
+        'select count(*) as count from wx_rooms where\
+    roomId=?',
+        [ roomId ],
+      )
+      if (res1[0].count <= 0) {
+        await promisePool.execute(
+          'insert into wx_rooms(roomId, membersList) values\
+    (?,?)',
+          [ roomId, JSON.stringify(room.memberList()) ],
+        )
+      }
+      console.log(res)
+    } catch (err) {
+      console.log('onMessage', err)
     }
   }
   // if (msg.self()) {
@@ -256,10 +285,13 @@ async function onMessage (msg: Message) {
     return
   }
 
-  if (msg.type() !== bot.Message.Type.Text
+  if (
+    msg.type() !== bot.Message.Type.Text
     || !/^(ding|ping|bing|code)$/i.test(msg.text())
   ) {
-    console.info('Message discarded because it does not match ding/ping/bing/code')
+    console.info(
+      'Message discarded because it does not match ding/ping/bing/code',
+    )
     return
   }
 
@@ -272,7 +304,9 @@ async function onMessage (msg: Message) {
   /**
    * 2. reply image(qrcode image)
    */
-  const fileBox = FileBox.fromUrl('https://wechaty.github.io/wechaty/images/bot-qr-code.png')
+  const fileBox = FileBox.fromUrl(
+    'https://wechaty.github.io/wechaty/images/bot-qr-code.png',
+  )
 
   await msg.say(fileBox)
   console.info('REPLY: %s', fileBox.toString())
@@ -288,9 +322,7 @@ async function onMessage (msg: Message) {
 }
 
 /**
- *
  * 7. Output the Welcome Message
- *
  */
 const welcome = `
 | __        __        _           _
