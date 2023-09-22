@@ -114,7 +114,7 @@ bot
           console.log('[ error ] >', error)
         }
         if (msg) {
-          console.log('[ allRoomResult ] >', allRoomResult)
+          // console.log('[ allRoomResult ] >', allRoomResult)
           allRoomResult.forEach((room) => {
             // if (room.payload.topic === 'xxxxx') {
             const randomTime = Math.random() * time
