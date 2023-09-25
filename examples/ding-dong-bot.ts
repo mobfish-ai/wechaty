@@ -32,6 +32,8 @@ import schedule from 'node-schedule'
 
 import { readFile } from 'fs/promises'
 
+import axios from 'axios'
+
 import { cronSetting } from './cron/cron.setting.ts'
 /**
  * 1. Declare your Bot!
@@ -55,6 +57,8 @@ const options = {
   //   token: 'xxx',
   // }
 }
+
+let sendMessageStatus = 0
 
 export function parseMysql (str: string) {
   const u = new URL(str)
@@ -185,33 +189,48 @@ function onScan (qrcode: string, status: ScanStatus) {
 
 function onLogin (user: Contact) {
   console.info(`${user.name()} login`)
+  sendMessageStatus = 0
 }
 
-function onLogout (user: Contact) {
+async function onLogout (user: Contact) {
   console.info(`${user.name()} logged out`)
+  if (bot.isLoggedIn) {
+    sendMessageStatus = 1
+    // bot.say('Wechaty error: ' + e.message).catch(console.error)
+    await sendBotMessage('wechaty机器人已掉线，请及时处理！')
+  }
 }
 
-function onError (e: Error) {
+async function onError (e: Error) {
   console.error('Bot error:', e)
   // 检查当前机器人状态
-  /*
-  if (bot.isLoggedIn) {
-    bot.say('Wechaty error: ' + e.message).catch(console.error)
+  if (bot.isLoggedIn && sendMessageStatus === 0) {
+    sendMessageStatus = 1
+    await sendBotMessage('wechaty机器人已掉线，请及时处理！')
   }
-  */
 }
 
-// const options = {
-//   protocol: 'https:',
-//   hostname: 'qyapi.weixin.qq.com',
-//   port: 443,
-//   path: '/cgi-bin/webhook/send?key='+process.env['MESSAGE_BOT_KEY'],
-//   method: 'POST',
-//   headers: {
-//       'Content-Type': 'application/json',
-//       'Content-Length': data.length
-//   }
-// };
+function sendBotMessage (msg:string) {
+  return new Promise((resolve, reject) => {
+    axios({
+      data:JSON.stringify({ msgtype: 'text', text: { content: msg } }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+      url:'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=' + process.env['MESSAGE_BOT_KEY'],
+    })
+      .then(function (response) {
+        if (response.status === 200) {
+          resolve()
+        } else {
+          reject()
+        }
+      })
+      .catch(function (error) {
+        console.log(error)
+        reject(error)
+      })
+  })
+}
 
 /**
  * 6. The most important handler is for:
