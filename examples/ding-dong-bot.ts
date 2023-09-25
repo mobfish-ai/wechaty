@@ -58,8 +58,6 @@ const options = {
   // }
 }
 
-let sendMessageStatus = 0
-
 export function parseMysql (str: string) {
   const u = new URL(str)
   if (u.protocol !== 'mysql:') throw new Error('Invalid protocol')
@@ -194,20 +192,13 @@ function onLogin (user: Contact) {
 
 async function onLogout (user: Contact) {
   console.info(`${user.name()} logged out`)
-  if (bot.isLoggedIn) {
-    sendMessageStatus = 1
-    // bot.say('Wechaty error: ' + e.message).catch(console.error)
-    await sendBotMessage('wechaty机器人已掉线，请及时处理！')
-  }
+  // bot.say('Wechaty error: ' + e.message).catch(console.error)
+  await sendBotMessage('wechaty机器人已掉线，请及时处理！')
 }
 
 async function onError (e: Error) {
   console.error('Bot error:', e)
   // 检查当前机器人状态
-  if (bot.isLoggedIn && sendMessageStatus === 0) {
-    sendMessageStatus = 1
-    await sendBotMessage('wechaty机器人已掉线，请及时处理！')
-  }
 }
 
 function sendBotMessage (msg:string) {
