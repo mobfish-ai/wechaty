@@ -101,44 +101,15 @@ bot
    */
   .start()
   .then(() => {
-    const callback = function (time:number) {
+    const callback = function (item:Record<string,unknown>) {
       return async () => {
-        const allRoomResult = await bot.Room.findAll()
-        let msg = ''
-        try {
-          msg = await readFile(
-            `${process.cwd()}/examples/cron/message.txt`,
-            'utf-8',
-          )
-          // console.log('[ msg ] >', msg)
-        } catch (error) {
-          msg = ''
-          console.log('[ error ] >', error)
-        }
-        if (msg) {
-          // console.log('[ allRoomResult ] >', allRoomResult)
-          allRoomResult.forEach((room) => {
-            // if (room.payload.topic === 'xxxxx') {
-            const randomTime = Math.random() * time
-            console.log(
-              `${
-                Math.ceil(randomTime / 1000 / 60)
-              }分钟后即将向群聊${room.payload.topic}发送招聘消息`,
-            )
-            setTimeout(async () => {
-              await room.say(msg)
-              console.log(`向群聊${room.payload.topic}发送成功`)
-            }, randomTime)
-            // }
-          })
-        } else {
-          console.log('发送内容为空，请检查原因！')
-        }
+        const allRoomResult = await bot.Room.findAll();
+        sendMsgStrByAllRooms(allRoomResult,item);
       }
     }
     if (cronSetting && Array.isArray(cronSetting.recruitment)) {
       cronSetting.recruitment.forEach(item => {
-        generateJob(item.cron, callback(item.randomTime))
+        generateJob(item.cron, callback(item))
       })
     } else {
       console.log('请检查corn配置文件是否有误！')
@@ -155,6 +126,53 @@ function generateJob (cron:string, cb:Function) {
   schedule.scheduleJob(cron, cb)
 }
 
+
+function sendMsgStrByAllRooms(allRoomResult:any,item:Record<string,unknown>) {
+  const settings = item as {randomTime:number,msgs:{type:string,path:string}[]}
+  allRoomResult.forEach((room) => {
+    if (room.payload.topic === '游泳区🌶️') {
+    const randomTime = Math.random() * settings.randomTime
+    console.log(
+      `${
+        Math.ceil(randomTime / 1000 / 60)
+      }分钟后即将向群聊${room.payload.topic}发送招聘消息`,
+    )
+    setTimeout(async () => {
+      for (const msg of settings.msgs) {
+        if (msg.type === 'text') {
+          let msgstr = ''
+          try {
+            msgstr = await readFile(
+              `${process.cwd()+msg.path}`,
+              'utf-8',
+            )
+            // console.log('[ msg ] >', msg)
+          } catch (error) {
+            msgstr = ''
+            console.log('[ error ] >', error)
+          }
+          if (msgstr) {
+            // console.log('[ allRoomResult ] >', allRoomResult)
+            await room.say(msgstr)
+          } else {
+            console.log('发送内容为空，请检查原因！')
+          }
+        }else if(msg.type === 'file'){
+          try {
+            const msgstr = FileBox.fromFile(process.cwd()+msg.path);
+            await room.say(msgstr)
+          } catch (error) {
+            console.log('[ error ] >', error)
+          }
+        }else {
+          console.log("no message type ");
+        }
+      }
+      console.log(`向群聊${room.payload.topic}发送成功`)
+    }, randomTime)
+    }
+  })
+}
 /**
  * 4. You are all set. ;-]
  */
@@ -187,7 +205,6 @@ function onScan (qrcode: string, status: ScanStatus) {
 
 function onLogin (user: Contact) {
   console.info(`${user.name()} login`)
-  sendMessageStatus = 0
 }
 
 async function onLogout (user: Contact) {
