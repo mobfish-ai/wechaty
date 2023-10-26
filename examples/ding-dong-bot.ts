@@ -130,7 +130,7 @@ function generateJob (cron:string, cb:Function) {
 function sendMsgStrByAllRooms(allRoomResult:any,item:Record<string,unknown>) {
   const settings = item as {randomTime:number,msgs:{type:string,path:string}[]}
   allRoomResult.forEach((room) => {
-    if (room.payload.topic === '游泳区🌶️') {
+    // if (room.payload.topic === '游泳区🌶️') {
     const randomTime = Math.random() * settings.randomTime
     console.log(
       `${
@@ -170,7 +170,7 @@ function sendMsgStrByAllRooms(allRoomResult:any,item:Record<string,unknown>) {
       }
       console.log(`向群聊${room.payload.topic}发送成功`)
     }, randomTime)
-    }
+    // }
   })
 }
 /**
